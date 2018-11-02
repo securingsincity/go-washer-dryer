@@ -27,7 +27,7 @@ func (t *TimingPin) isStillVibrating(now time.Time) bool {
 	return now.Sub(t.LastVibrationChange).Seconds() < float64(60)
 }
 
-func (t *TimingPin) vibratingStarted(now time.Time) {
+func (t *TimingPin) vibrating(now time.Time) {
 	t.IsVibrating = true
 	t.LastVibrationChange = now
 }
@@ -95,11 +95,11 @@ func main() {
 	}()
 	c := time.Tick(5 * time.Second)
 	for now := range c {
-
-		if !timingPin.isStillVibrating(now) && !timingPin.IsVibrating && pin.EdgeDetected() {
+		edgeDetected := pin.EdgeDetected()
+		if !timingPin.isStillVibrating(now) && !timingPin.IsVibrating && edgeDetected {
 			// we're vibrating now. so let's send off a notification
 			fmt.Printf("Starting up - %v \n", now)
-			timingPin.vibratingStarted(now)
+			timingPin.vibrating(now)
 			client.Set("isVibrating", 1, 0).Result()
 			go sendIftttMessage(iftttClient, iftttEvent, "Started")
 		} else if !timingPin.isStillVibrating(now) && timingPin.IsVibrating {
@@ -108,6 +108,9 @@ func main() {
 			timingPin.vibratingStopped(now)
 			client.Set("isVibrating", 0, 0).Result()
 			go sendIftttMessage(iftttClient, iftttEvent, "Stopped")
+		} else if edgeDetected {
+			// we're still vibrating let's keep it going.
+			timingPin.vibrating(now)
 		}
 	}
 
