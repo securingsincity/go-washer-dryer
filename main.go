@@ -42,6 +42,8 @@ func (t *TimingPin) vibratingStopped(now time.Time) {
 
 var iftttKey = os.Getenv("IFTTT_KEY")
 var iftttEvent = os.Getenv("MAKER_EVENT_NAME")
+var googleClientID = os.Getenv("GOOGLE_CLIENT_ID")
+var googleClientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
 
 func sendIftttMessage(client ifttt.IftttClient, event string, message string) {
 	fmt.Printf("Sending message - %v - %v \n", event, message)
@@ -117,8 +119,8 @@ func main() {
 
 		r := chi.NewRouter()
 		b := gbridge.Bridge{
-			ClientId:     os.Getenv("GOOGLE_CLIENT_ID"),
-			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+			ClientId:     googleClientID,
+			ClientSecret: googleClientSecret,
 		}
 		b.HandleQuery(CreateWasherDryer("1", "Dryer"), buildHandleQuery(client))
 		r.Route("/", func(r chi.Router) {
