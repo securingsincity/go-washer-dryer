@@ -159,7 +159,7 @@ func CreateWasherDryer(id string, name string) gbridge.Device {
 	d := gbridge.Device{
 		Id:     id,
 		Type:   gbridge.DeviceTypeDryer,
-		Traits: []gbridge.DeviceTrait{gbridge.DeviceTraitOnOff, gbridge.DeviceTraitStartStop},
+		Traits: []gbridge.DeviceTrait{gbridge.DeviceTraitStartStop},
 		Attributes: gbridge.Attributes{
 			Pausable: false,
 		},
