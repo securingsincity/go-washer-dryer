@@ -9,9 +9,12 @@ import (
 
 	"github.com/go-redis/redis"
 
-	"github.com/go-chi/render"
-
 	"net/http"
+
+	"github.com/go-chi/render"
+	"github.com/securingsincity/gbridge"
+
+	"github.com/go-chi/chi"
 
 	"github.com/lorenzobenvenuti/ifttt"
 	rpio "github.com/stianeikeland/go-rpio"
@@ -61,6 +64,27 @@ func buildHandler(redisClient *redis.Client) func(http.ResponseWriter, *http.Req
 	}
 	return fn
 }
+
+func buildHandleQuery(redisClient *redis.Client) func(dev gbridge.Device, res *gbridge.DeviceState) {
+	fn := func(dev gbridge.Device, res *gbridge.DeviceState) {
+		value, err := redisClient.Get("isVibrating").Result()
+		if err != nil {
+			panic(err)
+		}
+		intVal, err := strconv.Atoi(value)
+		if err != nil {
+			panic(err)
+		}
+		isVibrating := intVal == 1
+		res.Online = true
+		res.On = true
+		res.IsPaused = !isVibrating
+		res.IsRunning = isVibrating
+		log.Printf("Query Res: %+v\n", res)
+	}
+	return fn
+}
+
 func main() {
 	client := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
@@ -83,15 +107,27 @@ func main() {
 	}
 	pin := rpio.Pin(pinNumberAsInt)
 	pin.Input()
-	//pin.PullDown() // Input mode
+	pin.PullDown() // Input mode
 	pin.Detect(rpio.RiseEdge)
 	timingPin := TimingPin{
 		LastVibrationChange: time.Now(),
 		IsVibrating:         false,
 	}
 	go func() {
-		http.HandleFunc("/status", buildHandler(client))
-		log.Fatal(http.ListenAndServe(":3000", nil))
+
+		r := chi.NewRouter()
+		b := gbridge.Bridge{
+			ClientId:     os.Getenv("GOOGLE_CLIENT_ID"),
+			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		}
+		b.HandleQuery(CreateWasherDryer("1", "Dryer"), buildHandleQuery(client))
+		r.Route("/", func(r chi.Router) {
+			r.Get("/status", buildHandler(client))
+			r.Get("/oauth", b.HandleOauth)
+			r.Post("/smarthome", b.HandleSmartHome)
+			r.HandleFunc("/token", b.HandleToken)
+		})
+		log.Fatal(http.ListenAndServe(":3000", r))
 	}()
 	c := time.Tick(5 * time.Second)
 	for now := range c {
@@ -114,4 +150,22 @@ func main() {
 		}
 	}
 
+}
+
+func CreateWasherDryer(id string, name string) gbridge.Device {
+
+	d := gbridge.Device{
+		Id:     id,
+		Type:   gbridge.DeviceTypeDryer,
+		Traits: []gbridge.DeviceTrait{gbridge.DeviceTraitOnOff, gbridge.DeviceTraitStartStop},
+		Attributes: gbridge.Attributes{
+			Pausable: false,
+		},
+		Name: gbridge.DeviceName{
+			DefaultNames: []string{name},
+			Name:         name,
+			Nicknames:    []string{name},
+		},
+	}
+	return d
 }
